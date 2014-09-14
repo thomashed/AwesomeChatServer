@@ -7,7 +7,11 @@ package Interfaces;
 public interface Forum {
 
     public void startListener();
-
-    public void messageArrived(String msg);
+    
+    public boolean registerSubscriber(Subscriber client);
+    
+    public boolean unRegisterSubscriber(Subscriber client);
+    
+    public void notifySubscribers(String msg);
     
 }

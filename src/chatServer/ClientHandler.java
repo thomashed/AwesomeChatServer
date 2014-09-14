@@ -9,22 +9,29 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 
 /**
  *
  * @author Awesomeness
  */
-public class ClientHandler implements Runnable, Subscriber /*Will implement the Subscriber interface*/ {
+public class ClientHandler implements Runnable, Subscriber {
 
     private final Socket client;
-    private String name;
+    private String userName;
     private BufferedReader in;
     private PrintWriter out;
-    private List<Forum> observers;
+    private boolean hasConnected;
+    private String currentMessage;
 
-    public ClientHandler(Socket clientSocket) throws IOException {
+    private BlockingQueue<Subscriber> connectionRequests;
+    private BlockingQueue<Subscriber> messages;
+
+    public ClientHandler(Socket clientSocket, BlockingQueue<Subscriber> connectionRequests, BlockingQueue<Subscriber> messages) throws IOException {
+        this.messages = messages;
+        this.connectionRequests = connectionRequests;
+        this.hasConnected = false;
         this.client = clientSocket;
-        this.observers = new ArrayList();
         openResources();
     }
 
@@ -33,34 +40,56 @@ public class ClientHandler implements Runnable, Subscriber /*Will implement the 
         out = new PrintWriter(client.getOutputStream());
     }
 
-    public void sendMessage(String msg) { 
+    public void closeResources() throws IOException {
+        in.close();
+        out.close();
+    }
+
+    private void connectAttempt(String msg) {
+        if (msg.startsWith("CONNECT#")) {
+            // Set the userName
+            String[] token = msg.split("#");
+            setUsername(token[1]);
+        }
+        hasConnected = true;
+    }
+
+    // Overriden methods //
+    @Override
+    public void closeConnection() throws IOException {
+        send("CLOSE#");
+        closeResources();
+        client.close();
+    }
+
+    @Override
+    public void listen() {
+        new Thread(this).start();
+    }
+
+    @Override
+    public void setMessage(String msg) {
+        currentMessage = msg;
+    }
+
+    @Override
+    public String getMessage() {
+        return currentMessage;
+    }
+
+    @Override
+    public void send(String msg) {
         out.println(msg);
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    // Overriden methods
     @Override
-    public void registerObserver(Forum f) {
-        observers.add(f);
+    public void setUsername(String name) {
+        userName = name;
     }
 
     @Override
-    public void unRegisterObserver(Forum f) {
-        observers.remove(f);
-    }
-
-    @Override
-    public void notifyObservers(String msg) {
-        for (Forum current : observers) {
-            current.messageArrived(msg);
-        }
+    public String getUsername() {
+        return userName;
     }
 
     // Listens for input messages from client
@@ -71,10 +100,15 @@ public class ClientHandler implements Runnable, Subscriber /*Will implement the 
         try {
             while (true) {
                 response = in.readLine();
-                notifyObservers(response);
+                if (!hasConnected) {
+                    connectAttempt(response);
+                    connectionRequests.put(this);
+                }else{
+                    messages.put(this);
+                }
             }
-        } catch (IOException é) {
-
+        } catch (IOException | InterruptedException e) {
+            
         }
     }
 
