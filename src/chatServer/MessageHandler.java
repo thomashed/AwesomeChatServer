@@ -34,24 +34,35 @@ public class MessageHandler implements Runnable, Forum {
         this.connectionRequests = new ArrayBlockingQueue(10);
     }
 
-    public void analyzeMessage(Subscriber msg) {
+    public void analyzeMessage(Subscriber sender) {
 
-//        if (msg.startsWith("CONNECT#")) {
-//            String userName = msg.substring(8);
-//            // now we need to check if username already exists
-//
-//        } else if (msg.startsWith("SEND#")) {
-//            String recieversAndMessage = msg.substring(5);
-//            String[] tokens = recieversAndMessage.split("#");       // tokens[0] == recievers ----- tokens[1] == message
-//            String[] receivers = tokens[0].split(",");              // If recievers == * --> Then do something else!
-//            String message = tokens[1];
-//            // Loop through all subs with the corresponding names
-//        } else if (msg.startsWith("CLOSE#")) {
-//            // Expected: CLOSE#username
-//            String user = msg.substring(6);
-//            // Loop through and close connection on client with that name!
-//        }
+        if (sender.getMessage().startsWith("SEND#")) {
+            if (sender.getMessage().startsWith("SEND#*#")) {
+                String response = sender.getMessage().substring(7);
+                this.notifySubscribers(response);
+            } else {
+                String[] recievers = sender.getMessage().substring(5).split("#", 2);
+                String response = sender.getMessage().substring(5 + recievers[0].length() + 1);
+                this.notifyCertainSubscriber(recievers, response, sender);
+            }
 
+        }
+
+    }
+
+    // Method that tells clients the ONLINE#user,user - command
+    public String getOnlineStatus() {
+        // loop through all subscribers and call .getName
+        // Use StringBuilder to build new String -> ONLINE#user1,user,user3
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("ONLINE#");
+        for (Subscriber client : subscribers) {
+            sb.append(client.getUsername()).append(",");
+        }
+
+        String result = sb.toString();
+        return result.substring(0, result.length() - 1);
     }
 
     // Overriden methods
@@ -61,7 +72,7 @@ public class MessageHandler implements Runnable, Forum {
      *
      */
     @Override
-    public void startListener() {
+    public void startListeners() {
         new Thread(this).start();
         new Thread(new peek()).start();
         new Thread(new joinChat()).start();
@@ -99,8 +110,22 @@ public class MessageHandler implements Runnable, Forum {
      * Will only notify the subscribers that the sender intended to send this
      * message.
      *
+     * @param names
+     * @param msg
+     * @param sender
      */
-    public void notifySubscriber() {
+    public void notifyCertainSubscriber(String[] names, String msg, Subscriber sender) {
+        for (Subscriber client : subscribers) {
+            for (String name : names) {
+                if (name.equals(client.getUsername())) {
+                    String message = "MESSAGE#" + sender.getUsername() + "#" + msg;
+                    client.send(message);
+                }
+
+            }
+
+        }
+
     }
 
     // Listens for new clients on the server
@@ -160,9 +185,12 @@ public class MessageHandler implements Runnable, Forum {
                     Subscriber client = connectionRequests.take();
                     if (canJoin(client.getUsername())) { // Then the client picked a valid userName
                         registerSubscriber(client);
+                        notifySubscribers(getOnlineStatus());
+                    } else {
+                        client.closeConnection();
                     }
                 }
-            } catch (InterruptedException e) {
+            } catch (InterruptedException | IOException e) {
 
             }
 

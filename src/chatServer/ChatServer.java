@@ -25,7 +25,7 @@ public class ChatServer {
     public boolean startServer() throws IOException {
         server = new ServerSocket(port, backlog, InetAddress.getLocalHost());
         forum = new MessageHandler(server);
-        forum.startListener();
+        forum.startListeners();
         return server != null;
     }
 

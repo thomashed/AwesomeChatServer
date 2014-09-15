@@ -104,6 +104,7 @@ public class ClientHandler implements Runnable, Subscriber {
                     connectAttempt(response);
                     connectionRequests.put(this);
                 }else{
+                    setMessage(response);
                     messages.put(this);
                 }
             }

@@ -6,7 +6,7 @@ package Interfaces;
  */
 public interface Forum {
 
-    public void startListener();
+    public void startListeners();
     
     public boolean registerSubscriber(Subscriber client);
     
